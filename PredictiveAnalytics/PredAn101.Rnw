@@ -1,0 +1,10 @@
+\documentclass{beamer}
+
+\usepackage{Sweave}
+\usepackage{graphicx}
+
+\begin{document}
+<<>>=
+@ 
+
+\end{document}

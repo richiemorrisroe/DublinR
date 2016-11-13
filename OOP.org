@@ -1,0 +1,222 @@
+#+AUTHOR: richie morrisroe (my name at gmail)
+#+TITLE: How do R love thee, OOP? Let me count the ways
+* Introduction
+** What is OOP?
+** Java/C++ Way
+** R Way
+- S3 classes and methods
+- S4 classes and methods
+- R5: "Real" OOP
+- R6: Shoot me now
+* What is OOP?
+- A way to manage state
+
+- This is done by hiding the state, in objects
+
+- Which then communicate in specific ways
+
+- Which stops random changes to one thing invading Poland
+
+* An entirely wrong history of OOP
+- In the beginning there was C
+- C had things called structs
+  - Which were cool, you could manage state with them
+- Smalltalk was another language
+- C++ attempted to combine C and Smalltalk to create a monster
+- It implemented its "classes" as structs
+- Java copied a similar approach many years later
+- Smalltalk is said to have inspired Ruby
+* C++/Java Way
+- Objects hold methods and data
+- Called like this
+#+BEGIN_SRC java
+  class Foo  {
+      public void Bar() {
+          System.out.println("I am bar");
+      }
+      public void Baz() {
+          System.out.println("I am baz");
+      }
+  }
+  class Nerf inherits Foo {
+      public void Gun() {
+          System.out.println("pew pew");
+      }
+  }
+#+END_SRC
+* More OOP
+- Objects communicate through methods
+- Internals of an object are encapsulated
+- I know very little about this :(
+* The R Approach
+
+- R uses generic *functions* rather than methods
+- Each generic has methods for some subset of objects
+- R has multiple, overlapping object systems for such
+- Generic functions are at the heart of the language, such as print, plot, ggplot and summary
+* S3 simplez
+- In your function, add a class attribute
+- Write a generic
+- There is no Step 3
+#+BEGIN_SRC R :session :results none :exports code
+  foobar_func <- function(df) {
+      class(df) <- c("data.frame", "foobar")
+      df
+  }
+
+#+END_SRC
+
+* R Infrastructure for Generics
+
+#+BEGIN_SRC R :session :results none :exports code
+  method.skeleton(summary, signature="foobar")
+#+END_SRC
+
+- ~method.skeleton~ writes to a file a skeleton function containing the appropriate arguments for the generic
+- You then create behaviour for the function in this setMethod call
+
+#+BEGIN_SRC R :session :results none :exports code
+  setMethod("summary",
+      signature(object = "foobar"),
+      function (object, ...) 
+      {
+          head(object)
+      }
+  )
+
+#+END_SRC
+
+* Testing our Generic
+#+BEGIN_SRC R :session :results value :exports both
+  testdf <- data.frame(first=sample(letters, size=26, replace=TRUE), second=sample(1:1000, size=26, replace=TRUE))
+  foobar_df <- foobar_func(testdf)
+  class(foobar_df)
+  summary(foobar_df)
+#+END_SRC
+
+#+RESULTS:
+| d      : 3 | Min.   : 26.0 |
+| y      : 3 | 1st Qu.:334.8 |
+| a      : 2 | Median :580.5 |
+| i      : 2 | Mean   :550.3 |
+| j      : 2 | 3rd Qu.:820.5 |
+| n      : 2 | Max.   :967.0 |
+| (Other):12 | nil           |
+
+- D'oh! This didn't work, because S3 dispatches on the first argument of the class vector.
+- If we alter ~foobar_func~ to return a list with foobar first, we'll get the correct behaviour. 
+
+
+* S3 Advantages/Disadvantages
+
+** Advantages
+- Simple
+
+- Flexible
+
+- Quick for simple methods (plot, print, summary etc)
+
+** Disadvantages
+- No validation
+
+- Limited extensibility (no multiple inheritance)
+
+- S4 was introduced to rectify some of these problems
+
+* S4: The Sequel
+
+- S4 operates similarly to S3, but has a much more structured way to create objects.
+- Objects must satisfy certain predicates, or the create object functions fail
+- This can essentially implement invariants across your R code
+- With generic functions (pre-specified or new), simple DSL's can be created
+* A Digression: Stockfighter
+
+- A (now defunct) startup which focused on programming games
+- The first game involved trading stocks on a fictional exchange
+- You were given API client docs and a browser interface (that was pretty crap)
+- I wrote a lot of code against this API
+- I built a simple client ([[https://github.com/richiemorrisroe/stockfighterr][GitHub]])
+- And split all my level code and object system into another package ([[https://github.com/richiemorrisroe/sfobjects][here]])
+- I'll be using my work on this as an example throughout
+* Overall Structure
+- Stockfigher had ~levels~ which were associated with a number of things
+- Each level had a ~venue~ or an exchanage, and a set of ~stocks~ that might trade on them
+- Some actions were to ~buy~ or ~sell~ a stock or request a ~quote~ or the status of the ~orderbook~ or of an outsanding ~order~.
+- Orders could also be ~cancelled~.
+- First I built a basic API based on the docs (using ~httr~)
+- I then created a root object ~trades~
+- Which I used to create a set of generics useful for many other functions
+* Trades object
+
+#+BEGIN_SRC R :session
+  setClass(Class = "trades",
+           slots = list(ok = "logical",
+                      account = "character",
+                      venues = "character",
+                      tickers = "character",
+                      timestamp="data.frame"),
+           prototype = list(ok = NA,
+                          account = NA_character_,
+                          venues = NA_character_,
+                          tickers = NA_character_,
+                          timestamp = data.frame(
+                              start = NA, end = NA)))
+#+END_SRC
+- This creates an object which all of the other objects inherit from
+* S4 Classes
+- Must be created with a call to setClass
+- Must specify a prototype object defining what the allowed values are
+- These are ridiculous specific, such that ~NA~ is only acceptable for boolean fields
+- Slots: what the elements of the class are, and what type they take (ANY can be used to ensure that the class slot can hold anything)
+- prototype: default values for the object
+- validity: a function that returns TRUE if the object is a instance of the class
+- contains: what other class the class inherits from (VIRTUAL creates a virtual class)
+
+
+
+* Defining some generics
+
+#+BEGIN_SRC R :session :results none :exports code
+  account <- function(object) {
+      object@account
+
+  }
+  setMethod("account", signature("trades"),
+            def = account)
+
+  setGeneric("account", function(object) {
+    standardGeneric("account")
+  })
+#+END_SRC
+- First we define the account function
+- Then we set it to work with objects of class trades
+- Then we register it as a generic function
+
+* More generics
+#+BEGIN_SRC R :session :results none :exports code
+  venue <- function(object) {
+      object@venues
+  }
+  ticker <- function(object) {
+      object@tickers
+  }
+
+#+END_SRC
+- These are simple accessor functions, but they work on all relevant objects
+- They help to clarify the code, rather than losing it in a sea of object@something$list
+- Reduce the number of bugs caused from incorrectly grabbing the wrong part of the list
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

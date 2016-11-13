@@ -1,0 +1,92 @@
+
+* Introduction
+- Why debugging?
+  - print/message et al
+  - browser
+
+  - traceback
+
+  - trace
+  - trace on predicates
+  - Condition handling more generally
+
+* Print/REPL debugging
+- Easy to start with it, intuitive
+- Can be used across many languages
+  - In some languages, it is the only way :(
+- Pretty useless for larger functions
+
+* Stupid Example 
+#+BEGIN_SRC R :session :results none
+  stupid_func <- function(data, indices) {
+      train <- data[indices,]
+      test <- data[indices]
+      return(list(train, test))
+  }
+       
+#+END_SRC
+
+#+RESULTS:
+
+- Spot the Problem?
+- I didn't (for about 30 mins or so)
+
+* Print debugging
+
+#+BEGIN_SRC R :session :results none
+  test <- sample(nrow(iris), 75, replace=FALSE)
+  mytest <- stupid_func(iris, test)
+#+END_SRC
+- My `stupid_func` actually works well as an example, because none of the debugging methods are going to work well on this
+
+* Getting Better: Browser
+#+BEGIN_SRC R :session :results none
+  stupid_func <- function(data, indices) {
+      browser()
+      train <- data[indices,]
+      test <- data[indices]
+      return(list(train, test))
+  }
+#+END_SRC
+- Browser will stop execution of the function at the point at which it is called
+- There are then a number of things you can do
+
+
+* Five browser commands (No. 4 will astound you!)
+- n: moves to the next line
+- Q: leaves the browsing setting, not evaluating the function
+- c: leaves the session, evaluating the function
+- s: steps into a function at point
+- fL finish execution of current loop/function
+- Seriously though, number 4 means that you can move seamlessly from your code to the code you call, which is amazing (to me, at least ;) 
+
+
+* More realistic examples
+
+#+BEGIN_SRC R :session :results none 
+  parse_quote <- function(quote) {
+      quotecontents <- sapply(quote, function(x) content(x))
+      numrows <- length(quotecontents)
+      numcols <- max(sapply(quotecontents, length))
+      resmat <- matrix(data=NA, nrow=numrows, ncol=numcols)
+      nameextractors <- tolower(names(quotecontents[[1]]))
+      
+      for(i in 1:length(nameextractors)) {
+          fun <- get_component(component=nameextractors[i])
+          browser()
+          part <- fun(x=quotecontents)
+          resmat[1:length(part),i] <- part
+      }
+      resmat
+  }  
+
+#+END_SRC
+- WTF?
+- I *think* I was trying to build a generic extractor for the responses returned from an API, but given the name, I definitely didn't start that way.
+- Let's use browser to see what the hell actually happens in this function
+- Conveniently, there's one already there :)
+
+
+
+
+

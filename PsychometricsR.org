@@ -1,0 +1,101 @@
+* Introduction
+
+- What is psychometrics?
+- Theoretical approaches
+- Methods & Code
+- Problems
+
+* What is Psychometrics?
+
+- Study of mental processes
+- Operationalised using questionnaires and other instruments
+- Mostly questionnaires :/
+
+* Theory
+
+- Two major theories:
+  - Classical test Theory
+  - Item response theory (modern test theory)
+
+* CTT
+
+- CTT is normally associated with a set of methods
+  - Factor analysis (PCA on shared variance between items, potentially incorporating correlations between factors)
+  - item reliabilities (how consistent is each question with the overall scale)
+
+* CTT True Score
+
+- If you could get a human and make them respond to a questionnaire many times, while removing their memory after each time
+- The average score on the questionnaire would be the true score
+- This experiment is clearly impossible, but that never stopped anyone
+
+* Factor Analysis/IQ and *g*
+
+- Much of the original work concerned intelligence, and more specifically IQ
+- Stanford-Binet test focus of much early attention
+- Factor analysis was used on the correlation matrix of responses to the test
+- A number (chosen by the analyst) of factors are used, and can be rotated either orthogonally or obliquely
+- This matrix of coefficients is then analysed to find _simple structure_
+
+* Simple Structure
+
+- Principle is that each item should load on one and only one factor
+- If there are n factors, each item should have a 1 in one column and zeros in the other
+- This never actually happens
+
+* Problems
+
+- This is a method of unsupervised learning.
+- Easier for intelligence, where we have a correct answer
+- Method also applied to personality questionnaires, where there is no "right answer".
+- I spent my PhD trying to figure out how to do this
+- I did not succeed :(
+
+* Example
+
+- Famous model in psychology, the Big 5 personality traits
+- Theory states that these are sufficient and independent for an understanding of personality
+- Came from Costa and McCrae in the 70's
+- data available in R
+* Big 5
+- Extraversion: socially outgoing or not
+- Conscientiousness: responsible or not
+- Openness: neophilia or neophobia?
+- Neuroticism: worrier or not?
+- Agreeableness:
+
+* R Code
+#+BEGIN_SRC R :session :results none :exports code
+  require(psych)
+  neo <- data(neo) #this does not work
+  data(neo) ##this does, wtf?
+#+END_SRC
+- Correlation matrix of responses to questions
+- 6 questions for each of the five factors
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
