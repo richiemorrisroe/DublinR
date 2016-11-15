@@ -1,52 +1,68 @@
-#+AUTHOR: richie morrisroe (my name at gmail)
+#+AUTHOR: Richie Morrisroe 
 #+TITLE: How do R love thee, OOP? Let me count the ways
+#+OPTIONS: toc:nil  
+#+OPTIONS: ^:nil
+#+BEGIN_SRC R :session :results none :exports none
+  require(dplyr)
+  require(sfobjects)
+#+END_SRC
+#+BEGIN_SRC R :session :results none :exports none
+  states <- readRDS("statelist.rds")
+  quotes <- lapply(states, function (x) x$quote)
+  test_quote <- quotes[[6]]
+  tqdf <- as.data.frame(test_quote)
+  names(tqdf) <- with(tqdf, gsub("^x\\.", "",  x=names(tqdf)))
+#+END_SRC
 * Introduction
 ** What is OOP?
 ** Java/C++ Way
 ** R Way
 - S3 classes and methods
 - S4 classes and methods
-- R5: "Real" OOP
-- R6: Shoot me now
+# - R5: "Real" OOP
+# - R6: Shoot me now
 * What is OOP?
 - A way to manage state
-
-- This is done by hiding the state, in objects
-
-- Which then communicate in specific ways
-
+- This is done by hiding the state in objects
+- Which then communicate in specific ways (message passing)
+- Alice sends Bob a poke message, which he then interprets
 - Which stops random changes to one thing invading Poland
 
-* An entirely wrong history of OOP
-- In the beginning there was C
-- C had things called structs
-  - Which were cool, you could manage state with them
-- Smalltalk was another language
-- C++ attempted to combine C and Smalltalk to create a monster
-- It implemented its "classes" as structs
-- Java copied a similar approach many years later
-- Smalltalk is said to have inspired Ruby
-* C++/Java Way
-- Objects hold methods and data
-- Called like this
-#+BEGIN_SRC java
-  class Foo  {
-      public void Bar() {
-          System.out.println("I am bar");
-      }
-      public void Baz() {
-          System.out.println("I am baz");
-      }
-  }
-  class Nerf inherits Foo {
-      public void Gun() {
-          System.out.println("pew pew");
-      }
-  }
-#+END_SRC
-* More OOP
+# * An entirely wrong history of OOP
+# - In the beginning there was C
+# - C had things called structs
+#   - Which were cool, you could manage state with them
+# - Smalltalk was another language
+# - C++ attempted to combine C and Smalltalk to create a monster
+# - It implemented its "classes" as structs
+# - Java copied a similar approach many years later
+# - Smalltalk is said to have inspired Ruby
+# * C++/Java Way
+# - Objects hold methods and data
+# - Called like this
+# #+BEGIN_SRC java
+#   class Foo  {
+#       public void Bar() {
+#           System.out.println("I am bar");
+#       }
+#       public void Baz() {
+#           System.out.println("I am baz");
+#       }
+#   }
+#   class Nerf inherits Foo {
+#       public void Gun() {
+#           System.out.println("pew pew");
+#       }
+#   }
+# #+END_SRC
+* Java/C++ OOP
 - Objects communicate through methods
-- Internals of an object are encapsulated
+
+- Objects have functions and data attached
+
+- Only defined methods can update the internal state
+- Internals of an object are hidden
+
 - I know very little about this :(
 * The R Approach
 
@@ -54,7 +70,24 @@
 - Each generic has methods for some subset of objects
 - R has multiple, overlapping object systems for such
 - Generic functions are at the heart of the language, such as print, plot, ggplot and summary
-* S3 simplez
+* What is a generic function?
+- Essentially everything that works throughout the language
+#+BEGIN_SRC R :session :results output :exports both
+  length(methods("print"))
+  length(methods("plot"))
+  length(methods("["))
+  length(methods("$"))
+  length(methods("as.data.frame"))
+#+END_SRC
+
+#+RESULTS:
+: [1] 186
+: [1] 29
+: [1] 27
+: [1] 7
+: [1] 27
+
+* S3 simply
 - In your function, add a class attribute
 - Write a generic
 - There is no Step 3
@@ -66,45 +99,96 @@
 
 #+END_SRC
 
-* R Infrastructure for Generics
+* S3 Generic
 
 #+BEGIN_SRC R :session :results none :exports code
-  method.skeleton(summary, signature="foobar")
-#+END_SRC
-
-- ~method.skeleton~ writes to a file a skeleton function containing the appropriate arguments for the generic
-- You then create behaviour for the function in this setMethod call
-
-#+BEGIN_SRC R :session :results none :exports code
-  setMethod("summary",
-      signature(object = "foobar"),
-      function (object, ...) 
-      {
-          head(object)
-      }
-  )
-
+  print.foobar <- function(data, ...) {
+      print("foobar!")
+    }
 #+END_SRC
 
 * Testing our Generic
 #+BEGIN_SRC R :session :results value :exports both
-  testdf <- data.frame(first=sample(letters, size=26, replace=TRUE), second=sample(1:1000, size=26, replace=TRUE))
+  testdf <- data.frame(
+      first=sample(letters,
+                   size=26,
+                   replace=TRUE),
+      second=sample(1:1000, size=26, replace=TRUE))
   foobar_df <- foobar_func(testdf)
-  class(foobar_df)
-  summary(foobar_df)
+  print(foobar_df) %>% head()
 #+END_SRC
 
 #+RESULTS:
-| d      : 3 | Min.   : 26.0 |
-| y      : 3 | 1st Qu.:334.8 |
-| a      : 2 | Median :580.5 |
-| i      : 2 | Mean   :550.3 |
-| j      : 2 | 3rd Qu.:820.5 |
-| n      : 2 | Max.   :967.0 |
-| (Other):12 | nil           |
-
+| u | 288 |
+| l | 848 |
+| t | 515 |
+| b |  66 |
+| j | 231 |
+| l |  79 |
 - D'oh! This didn't work, because S3 dispatches on the first argument of the class vector.
-- If we alter ~foobar_func~ to return a list with foobar first, we'll get the correct behaviour. 
+# - If we alter ~foobar_func~ to return a list with foobar first, we'll get the correct behaviour. 
+
+* Fixing our Generic
+#+BEGIN_SRC R :session :results value :exports code
+  foobar_func <- function(df) {
+      class(df) <- c("foobar", "data.frame")
+      df
+  }
+print(foobar_df)
+
+#+END_SRC
+
+#+RESULTS:
+: foobar!
+- That's almost the entirety of S3
+
+* Creating a new generic
+#+BEGIN_SRC R :session :results output :exports both
+    baz <- function (x, ...) {
+       UseMethod("baz", x)
+     }
+    baz.foobar <- function(x, ...) {
+        print ("Worst method ever")
+    }
+    baz.default <- function(x, ...) {
+        print("God, this is a boring example")
+    }
+  baz(foobar_df)
+  baz(testdf)
+#+END_SRC
+
+#+RESULTS:
+: God, this is a boring example
+
+- A call to ~UseMethod~ is then made for the generic
+- It first looks for ~foobar~, then ~data.frame~ and then a method called ~default~
+# - If it doesn't find one, it signals an error
+
+
+
+
+
+# * R Infrastructure for Generics
+
+# #+BEGIN_SRC R :session :results none :exports code
+#   method.skeleton(summary, signature="foobar")
+# #+END_SRC
+
+# - ~method.skeleton~ writes to a file a skeleton function containing the appropriate arguments for the generic
+# - You then create behaviour for the function in this setMethod call
+
+# #+BEGIN_SRC R :session :results none :exports code
+#   setMethod("summary",
+#       signature(object = "foobar"),
+#       function (object, ...) 
+#       {
+#           head(object)
+#       }
+#   )
+
+# #+END_SRC
+
+
 
 
 * S3 Advantages/Disadvantages
@@ -131,7 +215,7 @@
 - With generic functions (pre-specified or new), simple DSL's can be created
 * A Digression: Stockfighter
 
-- A (now defunct) startup which focused on programming games
+- A (now defunct) start-up which focused on programming games
 - The first game involved trading stocks on a fictional exchange
 - You were given API client docs and a browser interface (that was pretty crap)
 - I wrote a lot of code against this API
@@ -139,9 +223,9 @@
 - And split all my level code and object system into another package ([[https://github.com/richiemorrisroe/sfobjects][here]])
 - I'll be using my work on this as an example throughout
 * Overall Structure
-- Stockfigher had ~levels~ which were associated with a number of things
-- Each level had a ~venue~ or an exchanage, and a set of ~stocks~ that might trade on them
-- Some actions were to ~buy~ or ~sell~ a stock or request a ~quote~ or the status of the ~orderbook~ or of an outsanding ~order~.
+- Stockfighter had ~levels~ which were associated with a number of things
+- Each level had a ~venue~ or an exchange, and a set of ~stocks/tickers~ that might trade on them
+- Some actions were to ~make_order~ for a stock or request a ~quote~ or the status of the ~orderbook~ or of an outstanding ~order~.
 - Orders could also be ~cancelled~.
 - First I built a basic API based on the docs (using ~httr~)
 - I then created a root object ~trades~
@@ -166,7 +250,7 @@
 * S4 Classes
 - Must be created with a call to setClass
 - Must specify a prototype object defining what the allowed values are
-- These are ridiculous specific, such that ~NA~ is only acceptable for boolean fields
+- These are ridiculously specific, such that ~NA~ is only acceptable for Boolean fields
 - Slots: what the elements of the class are, and what type they take (ANY can be used to ensure that the class slot can hold anything)
 - prototype: default values for the object
 - validity: a function that returns TRUE if the object is a instance of the class
@@ -200,23 +284,238 @@
   ticker <- function(object) {
       object@tickers
   }
-
 #+END_SRC
-- These are simple accessor functions, but they work on all relevant objects
+- These are simple access-or functions, but they work on all relevant objects
 - They help to clarify the code, rather than losing it in a sea of object@something$list
 - Reduce the number of bugs caused from incorrectly grabbing the wrong part of the list
 
 
+* Inheritance
+- Pretty easy
+#+BEGIN_SRC R :session :results none :exports code
+  setClass("quote",
+           slots=list(bid="integer",
+                      ask="integer",
+                      bidSize="integer",
+                      askSize="integer",
+                      bidDepth="integer",
+                      askDepth="integer",
+                      last="integer",
+                      lastSize="integer",
+                      lastTrade="character",
+                      quoteTime="character"),
+           contains="trades")
+#+END_SRC
+- Note that you need the tedious ~NA~ drill (in the prototype) from before if you want to allow for any missing values in any instance of the object
+
+* Simplifying Code
+- There was a lot of setup and checks to perform for Stockfighter
+
+- Monitoring the levels was useful (graphs later)
+
+- S4 helped me to simplify a lot of code and avoid repetition
+#+BEGIN_SRC R :session :eval no :results none :exports code
+      level <- start_level("sell_side") 
+      while(isTRUE(levok)) {
+          current_state <- state_of_market(level,
+                                           apikey)
+          level_stat <- get_level_status(current_state)
+          status <- status(stat)
+          levok <- ok(stat)
+          if(status!="open") {
+              break
+          }
+  }
+
+#+END_SRC
+
+* State of Market
+#+BEGIN_SRC R :session :results none :exports code
+  state_of_market <- function(level, apikey) {
+      account <- account(level)
+      venue <- venue(level)
+      stock <- ticker(level)
+      quote <- as_quote(venue, stock)
+      ord <- as_orderbook(venue, stock)
+      myorders <- (as_orderlist(level, apikey))
+      status <- (level_status(level, apikey=apikey))
+      res <- list(orderbook=ord,
+                  quote=quote,
+                  myorders=myorders,
+                  status=status)
+      res
+  }
+
+#+END_SRC
+- I promised myself here that I wouldn't get distracted by futures
+* as_orderbook
+
+#+BEGIN_SRC R :session :results none :exports code
+  as_orderbook <- function(venue, stock) {
+      res <- stockfighterr::get_orderbook(venue, stock)
+      resp <- stockfighterr::parse_response(res)
+      respo <- orderbook(resp)
+  }
+#+END_SRC
+
+* Orderbook
+
+#+BEGIN_SRC R :session :results none :exports code
+  orderbook <- function(order) {
+          tsparsed <- lubridate::ymd_hms(order$ts)
+          orderbook <- with(order,
+                            new("orderbook",
+                                ok=ok,
+                                venues=venue,
+                                tickers=symbol,
+                                ymdhms=tsparsed,
+                                bids=bids,
+                                asks=asks,
+                                timestamp=timestamp))
+          orderbook
+  }
+#+END_SRC
+
+* Layers and Layers, oh My!
+- The flow goes as follows
+- we get a http response from ~get_orderbook~
+- This gets parsed to a list
+- Then converted to a orderbook object
+- We can wrap the whole thing into ~as_orderbook~
+- Which then gets called in a loop to update our understanding of the market
+* Multiple Inheritance
+- S3 always dispatches on the first element of the class attribute
+- S4 can dispatch based on multiple different types
+* An Example: Timing of functions
+- I realised soon that I couldn't rely upon the server timestamp
+- I really didn't want to rewrite my code
+- So I wrote a function to wrap my current functions
+#+BEGIN_SRC R :session 
+    timed <- function(f, ...) {
+        function(...) {
+            start <- lubridate::now(tzone="UTC")
+            res <- f(...)
+            end <- lubridate::now(tzone="UTC")
+            res <- list(time=data.frame(start=start, end=end), 
+                        res=res)
+        }
+    }
+#+END_SRC
+* the Problem
+- Before I wrote this function, I had nice S4 objects
+- Afterwards, I had horrible lists and indexing code again
+- A solution?
+- Multiple Inheritance!
+
+* Timed class
+#+BEGIN_SRC R :session :results none :exports code
+    setClass(Class="Timed",
+             slots=list(timestamp="data.frame", 
+                        res="trades"))
+#+END_SRC
+#+BEGIN_SRC R :session :exports none
+  get_stuff <- function() {
+      res <- httr::GET ("https://jsonplaceholder.typicode.com/posts")
+  }
+
+#+END_SRC
+* time, revised
+#+BEGIN_SRC R :session :results none :exports code
+  timed <- function(f, ...) {
+      function(...) {
+          start <- lubridate::now(tzone="UTC")
+          res <- f(...)
+          end <- lubridate::now(tzone="UTC")
+          timed <- new("Timed", timestamp=data.frame(start=start, end=end), res=res)
+      }
+  }
+#+END_SRC
+* Writing new generics
+#+BEGIN_SRC R :session :results none :exports code
+  ticker.trades <- function(object) {
+      object@tickers
+  }
+  setMethod("ticker", signature("trades"),
+            def = ticker.trades)
+  ticker.Timed <- function(object) {
+      obj <- object@res
+      ticker(obj)
+  }
+  setMethod("ticker", signature("Timed"),
+            def = ticker.Timed)
+
+#+END_SRC
+- This was surprisingly difficult to figure out
+- Mind you, I had to recreate data in order to test (because the service has shut down)
+* Useful Generics
+- You *must* write a data.frame method
+- Otherwise you will spend all of your time converting to/from data.frame
+#+BEGIN_SRC R :session :results none :exports code
+  method.skeleton("as.data.frame", signature="orderbook")
+  setMethod("as.data.frame",
+      signature(x = "orderbook"),
+      function (x, row.names = NULL, optional = FALSE, ...) 
+      {
+
+      }
+  )
+#+END_SRC
+
+* Data frame methods, continued
+#+BEGIN_SRC R :session :results none :exports code
+    as.data.frame.orderbook <- function (x, row.names = NULL,
+                                         optional = FALSE, ...)
+    {
+        ordbids <- get_bids(x)
+        ordasks <- get_asks(x)
+        time <- x@ymdhms
+        names <- c("time", names(ordbids))
+        bidask <- rbind(ordbids, ordasks)
+        times <- rep(time, nrow(bidask))
+        bidasktime <- cbind(times, bidask)
+        dfs <- as.data.frame(bidasktime)
+        dfs
+    }
+#+END_SRC
+* Comparison Methods
+- You can define methods for addition, subtraction, etc with what is known as group generics
+
+- I'm not covering them because they are horribly complex
+- Common ones include ~Arith~, ~Compare~ and ~Ops~
+#+BEGIN_SRC R :session :results none :exports code
+  setMethod("==",
+      signature(e1 = "quote", e2 = "quote"),
+      function (e1, e2) 
+      {
+          ifelse(e1@bid == e2@bid &
+                 e1@bidSize==e2@bidSize &
+                 e1@askSize==e2@askSize &
+                 e1@bidDepth==e2@bidDepth &
+                 e1@askDepth==e2@askDepth &
+                 e1@last==e2@last &
+                 e1@lastSize==e2@lastSize &
+                 e1@lastTrade==e2@lastTrade, TRUE, FALSE)
+      }
+      )
+#+END_SRC
+* R5
+- Don't know much about this
+- Appear to be implemented as a combination of an S4 class and an enviroment
+- Have side effects (call by reference ) semantics
+
+- Accessed via list notation
+
+- Similar to Java/C++ objects
+#+BEGIN_SRC R :session :results none :exports code
+refclass$state
+#+END_SRC
 
 
 
-
-
-
-
-
-
-
-
+* Conclusions
+- R has a rich heritage of OOP
+- These are somewhat contradictory in nature (with confusingly named functions)
+- S3 are simple but limited
+- S4 are complicated and powerful (and much, much stricter)
 
 
