@@ -445,6 +445,7 @@ print(foobar_df)
             def = ticker.Timed)
 
 #+END_SRC
+- Voila! We can now remove the extra $ and @ we need and still use our generic functions
 - This was surprisingly difficult to figure out
 - Mind you, I had to recreate data in order to test (because the service has shut down)
 * Useful Generics
