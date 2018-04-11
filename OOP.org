@@ -454,6 +454,7 @@ print(foobar_df)
 #+BEGIN_SRC R :session :results none :exports code
   method.skeleton("as.data.frame", signature="orderbook")
   setMethod("as.data.frame",
+
       signature(x = "orderbook"),
       function (x, row.names = NULL, optional = FALSE, ...) 
       {

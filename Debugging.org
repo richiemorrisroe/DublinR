@@ -1,35 +1,47 @@
-
+#+OPTIONS: toc:nil
+#+OPTIONS: ^:nil
 * Introduction
+
+* Rationale
 - Why debugging?
-  - print/message et al
-  - browser
+  - We are all stupid at times
+  - Sometimes, we are clever
+  - Later, this cleverness makes us feel stupid
+#+BEGIN_QUOTE
+Everyone knows that debugging is twice as hard as writing a program in the first place. So if you're as clever as you can be when you write it, how will you ever debug it? - Brian Kernighan, Unix for Beginners
+#+END_QUOTE
 
-  - traceback
 
-  - trace
-  - trace on predicates
-  - Condition handling more generally
+* How?
+ - print/message et al
+ - browser
+ - traceback
+ - trace
+ - trace on predicates
+ - Condition handling more generally
 
 * Print/REPL debugging
 - Easy to start with it, intuitive
 - Can be used across many languages
   - In some languages, it is the only way :(
 - Pretty useless for larger functions
+- Makes for horrible, horrible code
 
-* Stupid Example 
+
+* Stupid Example
 #+BEGIN_SRC R :session :results none
   stupid_func <- function(data, indices) {
       train <- data[indices,]
       test <- data[indices]
       return(list(train, test))
   }
-       
+
 #+END_SRC
 
 #+RESULTS:
 
-- Spot the Problem?
-- I didn't (for about 30 mins or so)
+- Spot the problem?
+- I didn't (for more time than I'm comfortable admitting)
 
 * Print debugging
 
@@ -50,43 +62,412 @@
 #+END_SRC
 - Browser will stop execution of the function at the point at which it is called
 - There are then a number of things you can do
-
-
+  - 5 commands:
+    - *n* for next command
+    - *s* for *step* into the next function
+:test:
+this is a drawer
+:END:
+- *f* for finish execution of current loop/function
+  - *Q* for stop (exit debugging)
+  - *<Enter>* for repeat current command
+  - *where* print out current call-stack
 * Five browser commands (No. 4 will astound you!)
 - n: moves to the next line
 - Q: leaves the browsing setting, not evaluating the function
 - c: leaves the session, evaluating the function
 - s: steps into a function at point
-- fL finish execution of current loop/function
-- Seriously though, number 4 means that you can move seamlessly from your code to the code you call, which is amazing (to me, at least ;) 
-
-
+- f finish execution of current loop/function
+- Seriously though, number 4 means that you can move seamlessly from your code to the code you call, which is amazing (to me, at least ;)
+- Additionally, this works better with smaller functions
 * More realistic examples
 
-#+BEGIN_SRC R :session :results none 
-  parse_quote <- function(quote) {
-      quotecontents <- sapply(quote, function(x) content(x))
+#+BEGIN_SRC R :session :results none
+parse_quote <- function(quote) {
+      quotecontents <- sapply(quote,
+                              function(x) content(x))
       numrows <- length(quotecontents)
       numcols <- max(sapply(quotecontents, length))
       resmat <- matrix(data=NA, nrow=numrows, ncol=numcols)
       nameextractors <- tolower(names(quotecontents[[1]]))
-      
+
       for(i in 1:length(nameextractors)) {
-          fun <- get_component(component=nameextractors[i])
-          browser()
+          fun <- get_component(
+              component=nameextractors[i])
           part <- fun(x=quotecontents)
           resmat[1:length(part),i] <- part
       }
       resmat
-  }  
+  }
 
 #+END_SRC
 - WTF?
 - I *think* I was trying to build a generic extractor for the responses returned from an API, but given the name, I definitely didn't start that way.
 - Let's use browser to see what the hell actually happens in this function
 - Conveniently, there's one already there :)
+* First Steps :noexport:
+
+#+BEGIN_SRC R :session :results output
+require(stockfighterr)
+require(sfobjects)
+p <- parse_quote(q)
+#+END_SRC
+
+#+RESULTS:
+: Error in as.list.default(X) (from Debugging.org!5628Tsr#2) :
+:   no method for coercing this S4 class to a vector
+* Laziness to a whole new level: trace
+- I *could* add some browser calls to the above function
+- That's going to be really annoying (especially when you run it in a script on a remote machine and it times out and it takes days to figure out what the hell even happened)
+- Of course, *I* would never do that
+- there's a better way - *trace*
+#+BEGIN_SRC R :session :exports none :results none
+trace(parse_quote, tracer=browser)
+#+END_SRC
+
+* Trace
+- Trace with no arguments reports when a function is called
+#+BEGIN_SRC R :session :results output :exports both
+stupidfunc <- function(x, y) {res <- x + y}
+stupiderfunc <- function(n) {
+    res <- vector(length=n)
+    for(i in 1:n) {
+        res[i] <- stupidfunc(i, 2)
+    }
+    }
+trace(stupidfunc)
+stupiderfunc(10)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+trace: stupidfunc
+#+end_example
+
+
+* More Trace
+- Trace can be used for debugging your own functions
+- It can also be used to debug functions from packages
+#+BEGIN_SRC R :session
+trace(ggplot2, tracer=browser)
+#+END_SRC
+- This will allow you to step through the entire function
+- Upon reload of the function, this is removed
+- Can also be removed using untrace
+#+BEGIN_SRC R :session :exports code
+untrace(stupidfunc)
+#+END_SRC
+
+* Even More Trace :noexport:
+- More generally, trace has some arguments that accept unevaluated expressions and take action inside the traced function based on these
+#+BEGIN_SRC R :session :results output :eval no
+## trace(stupiderfunc)
+## ## trace(stupiderfunc, tracer=quote(cat(sprintf("i is %d\n", i))))
+## trace(pt) ## would show ~20 calls, but we want to see more:
+##      trace(pt, tracer = quote(cat(sprintf("tracing pt(*, ncp = %.15g)\n", ncp))),
+##            print = FALSE) # <- not showing typical extra
+##      power.t.test(20, 1, power=0.8, sd=NULL)  ##--> showing the ncp root finding:
+##      untrace(pt)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+ trace: sum
+Tracing function "pt" in package "stats"
+[1] "pt"
+trace: sum
+tracing pt(*, ncp = 31622776.6016838)
+tracing pt(*, ncp = 3.16227766016838e-07)
+tracing pt(*, ncp = 1.54161033083713e-06)
+tracing pt(*, ncp = 7.51534968562983e-06)
+tracing pt(*, ncp = 3.66373136232471e-05)
+tracing pt(*, ncp = 0.000178606521414343)
+tracing pt(*, ncp = 0.000870697700373358)
+tracing pt(*, ncp = 0.00424443508523481)
+tracing pt(*, ncp = 0.0206864667531106)
+tracing pt(*, ncp = 0.100722153608784)
+tracing pt(*, ncp = 0.48783816205104)
+tracing pt(*, ncp = 2.27122420983028)
+tracing pt(*, ncp = 4.54127936549001)
+tracing pt(*, ncp = 3.04551810443699)
+tracing pt(*, ncp = 2.82497901757656)
+tracing pt(*, ncp = 2.87564199633926)
+tracing pt(*, ncp = 2.87492378604085)
+tracing pt(*, ncp = 2.87476426843053)
+tracing pt(*, ncp = 2.87492378604085)
+
+     Two-sample t test power calculation
+
+              n = 20
+          delta = 1
+             sd = 1.099952
+      sig.level = 0.05
+          power = 0.8
+    alternative = two.sided
+
+NOTE: n is number in *each* group
+trace: sum
+Untracing function "pt" in package "stats"
+#+end_example
+* Other Tricks
+- If an error occurs in someone else's code, there is an easy way
+#+BEGIN_SRC R :session :eval no
+options(error=recover)
+options(error=NULL)
+#+END_SRC
+- This will then present you with a call stack and the ability to step into any of them using a number (or 0 to exit to the top-level)
+- This is really useful for errors which are sporadic, so you can see what data actually causes the error
+
+* Handling errors
+- We don't always have the option of dropping into a REPL to debug
+- The code could be on a remote server
+- The code could be running on someone else's machine
+- You may wish to automate a set of reports/decisions in which case you definitely can't handle errors manually
+- This is a job for R's condition system
+* Try
+- The simplest way to do this is try
+#+BEGIN_SRC R :session :results output :eval no
+## a <- "a"
+## 1+a
+#+END_SRC
+
+#+RESULTS:
+: Error in 1 + a : non-numeric argument to binary operator
+#+BEGIN_SRC R :session :results verbatim
+err <- try(1+a, silent=TRUE)
+class(err)
+#+END_SRC
+
+#+RESULTS:
+ "try-error"
+=- So now we can record each of the errors and (potentially take some action based on them)
+* tryCatch
+- TryCatch is a more general form of try
+- Using this, we can take different actions based on what happened in the function
+#+BEGIN_SRC R :session :results output :exports both
+conditions <- function(code) {
+    tryCatch(code,
+             error=function(c) "error",
+             warning=function(c) "warning",
+             message=function(c) "message"
+             )
+
+}
+conditions(stop(1+2))
+conditions(warning(1+2))
+conditions(message(1+2))
+#+END_SRC
+
+#+RESULTS:
+: [1] "error"
+: [1] "warning"
+: [1] "message"
+
+- If the code is successful, the result is returned
+- Otherwise, the respective condition function is evaluated
+- So, for instance, if we were trying to get a bunch of webpages, then we could log errors (and potentially retry) and warnings, while using message to report on the progress which was made
+#+BEGIN_SRC R :session :results none :exports none
+rentals <- readRDS("~/Dropbox/Data/Rentals/testtrain_data.rds")
+#+END_SRC
+* Better Examples
+#+BEGIN_SRC R :session :exports both :results output
+message_handler <- function(m) message(m)
+warning_handler <- function(w) warning(w)
+error_handler <- function(e) simpleError(
+                                 message="simple error",
+                                 call=e)
+ok_res <- tryCatch(expr=1+1,
+         message=message_handler,
+         warning=warning_handler,
+         error=error_handler)
+
+warning_res <- tryCatch(expr=as.integer(2^32+1),
+         message=message_handler,
+         warning=warning_handler,
+         error=error_handler)
+
+error_res <- tryCatch(expr=1+a,
+         message=message_handler,
+         warning=warning_handler,
+         error=error_handler)
+
+
+#+END_SRC
+
+#+RESULTS:
+:  Warning message:
+: In doTryCatch(return(expr), name, parentenv, handler) :
+:   NAs introduced by coercion to integer range
+
+* Finally
+- tryCatch also has an argument *finally* which is a function which is called before control is handed away from the tryCatch block
+- This is normally most useful for writing out files and ensuring that connections are closed.
+- In general, when something always needs to happen, regardless of any errors, it should be in a finally block.
+#+BEGIN_SRC R :session  :eval no
+tryCatch({
+    while(isTRUE(levok)) {
+    error={function(...) message(e)},
+    finally={
+        ##because i starts at one
+        statelist_done <- statelist[1:(i-1)]
+        saveRDS(statelist_done,
+             file=paste("statelist",
+                        as.character(
+                            Sys.time()),
+                        args[1],
+                        ".rds",
+                        sep="_"))
+        change_instance(first, "stop")})
+
+#+END_SRC
+- This was code that hit an API and logged all of the data got in each session in a finally block. It also ensured that the connection to the API was closed.
+
+* Custom Conditions
+- You can create custom conditions
+- They should inherit from error, warning or message if you want them to work
+- They must contain message and call components
+
+#+BEGIN_SRC R :session :results verbatim :exports both
+#shamelessly stolen from advanced R, Wickham (2014)
+condition <- function(subclass, message, call = sys.call(-1), ...) {
+  structure(
+    class = c(subclass, "condition"),
+    list(message = message, call = call, ...)
+  )
+}
+is.condition <- function(x) inherits(x, "condition")
+myerr <- condition("error", message="this is my error")
+is.condition(myerr)
+#+END_SRC
+
+#+RESULTS:
+=TRUE
+* Example: getting loads of photos for CNN usage
+- Because deep learning is so hot right now
+- And because I suspect most of the benchmarks are horribly over-fitted
+#+BEGIN_SRC R :session :results none :exports none
+photos <- rentals$photos
+set.seed(11)
+sample <- sample(1:length(photos), size=5000)
+sample_for_photos <- rentals[sample,]
+first_row <- sample_for_photos[1,]
+photo_urls <- sample_for_photos$photosy
+#+END_SRC
+
+#+BEGIN_SRC R :session
+get_one_photo <- function(url, name) {
+    download.file(url, destfile =name, mode="wb" )
+    message(paste("got ", url, " saved to ", name, sep="" ))
+}
+get_some_photos <- function(list, id, folder) {
+
+        for (i in 1:length(list)) {
+            nam <- paste0(folder, "/", id, "-", i, ".jpg")
+            get_one_photo(list[i], name = nam)
+        }
+
+}
+    dir.create("photos_sample")
+#+END_SRC
+
+#+RESULTS:
+: TRUE
+
+* Explanation
+
+- we wrap download.file for getting one url and saving as PNG
+- We then call this functions repeatedly this to get all photos associated with a given row (the URLs are stored in a list-column)
+* Using messages to record state
+#+BEGIN_SRC R :session :results none :exports none
+
+somephot <- get_some_photos(first_row, folder="test")
+#+END_SRC
 
 
 
+#+BEGIN_SRC R :session :results none
+log_results <- function(e) {
+    if(!exists("num_processed")) {
+        num_processed <<- 1
+    }
+    else {
+        num_processed <<- num_processed + 1
+    }
+    if(!exists("messagedf")) {
+        messagedf <<- vector(mode="list", length=1)
+    }
+    else {
+        messagedf <<- c(messagedf, e)
+    }}
+#+END_SRC
+- We will log each URL processed
+- We can also log the number of URLs processed (just because, I guess)
+- Note the (normally a bad idea) use of global variables (*<<-*)
 
+* Warnings
 
+#+BEGIN_SRC R :session :results none :exports code
+handle_warnings <- function(e) {
+    message(e)
+    if(!exists("warning_vec")) {
+        warning_vec <<- e
+    }
+    else {
+        warning_vec <<- c(warning_vec, e)
+
+    }
+
+}
+#+END_SRC
+
+* Putting it together
+
+#+BEGIN_SRC R :session
+get_all_photos <- function(data) {
+    for(j in 1:nrow(data)) {
+        if(length(data$photos[[j]])==0) {
+            next
+        }
+        else {
+            tryCatch(expr={get_some_photos(
+                               unlist(data$photos[j]),
+                               id=data$listing_id[j],
+                               folder="photos_sample")},
+                     message=function(e) log_results(e),
+                     warning=function(e) handle_warnings(e),
+                     error=function(...) message(e)
+                     )
+        }
+    }
+
+}
+#+END_SRC
+
+#+RESULTS:
+
+* Recap
+- This is, I admit, definitely not best practice
+- But if the errors are independent and infrequent, it does have the advantage of working.
+- To make it better, we'll need to go a little further into R's condition system
+* Conclusions
+
+- R has a variety of mechanisms for debugging
+- browser is quick and easy
+- options(error=recover) is useful, but annoying
+- trace allows you to debug any function
+- When you need to respond to unexpected events, use the condition system
+
+* References
+
+- Hadley Wickham, Advanced R ([[http://adv-r.had.co.nz/Exceptions-Debugging.html][this chapter]])
+- John Chambers, Software for Data Analysis (read all of it)
+- Peter Siebel, Beyond Exception Handling ([[http://adv-r.had.co.nz/beyond-exception-handling.html][translated by Hadley]])
